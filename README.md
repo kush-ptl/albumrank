@@ -27,7 +27,7 @@ The "min tracks liked" filter is useful for cutting out albums where you only li
 Clone the repo and serve it with Python:
 
 ```bash
-git clone https://github.com/your-username/album-rank.git
+git clone https://github.com/kush-ptl/album-rank.git
 cd album-rank
 python3 -m http.server 8888 --bind 127.0.0.1
 ```
