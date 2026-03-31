@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AlbumRank — Spotify</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --green: #1DB954;
+  --dark: #0a0a0a;
+  --surface: #141414;
+  --surface2: #1c1c1c;
+  --border: #2a2a2a;
+  --text: #f0f0f0;
+  --muted: #888;
+}
+
+body {
+  background: var(--dark);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.bg-grid {
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0.25;
+  pointer-events: none;
+  z-index: 0;
+}
+
+#setup-screen {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 100vh; padding: 2rem; gap: 1.6rem;
+}
+
+.logo { font-family: 'DM Serif Display', serif; font-size: 2.4rem; letter-spacing: -0.02em; }
+.logo span { color: var(--green); font-style: italic; }
+.tagline { font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+
+.card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 2px;
+  padding: 2rem; width: 100%; max-width: 460px;
+  display: flex; flex-direction: column; gap: 1.2rem;
+}
+.card label { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 0.4rem; }
+.card input {
+  width: 100%; background: var(--dark); border: 1px solid var(--border); border-radius: 2px;
+  color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.85rem;
+  padding: 0.75rem 0.9rem; outline: none; transition: border-color 0.2s;
+}
+.card input:focus { border-color: var(--green); }
+
+.btn {
+  width: 100%; background: var(--green); color: #000; border: none; border-radius: 2px;
+  font-family: 'DM Mono', monospace; font-size: 0.8rem; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase; padding: 0.9rem;
+  cursor: pointer; transition: opacity 0.15s, transform 0.1s; margin-top: 0.3rem;
+}
+.btn:hover { opacity: 0.85; }
+.btn:active { transform: scale(0.98); }
+
+.instructions {
+  background: var(--surface2); border: 1px solid var(--border); border-radius: 2px;
+  padding: 1.4rem; font-size: 0.74rem; line-height: 1.8; color: var(--muted);
+  width: 100%; max-width: 460px;
+}
+.instructions strong { color: var(--text); }
+.instructions code {
+  color: var(--green); background: rgba(29,185,84,0.1);
+  padding: 0.1rem 0.3rem; border-radius: 2px; font-size: 0.72rem;
+}
+.instructions ol { padding-left: 1.2rem; }
+.instructions li { margin-bottom: 0.3rem; }
+.instructions a { color: var(--green); text-decoration: none; }
+
+.err {
+  color: #ff6b6b; font-size: 0.78rem; background: rgba(255,107,107,0.08);
+  border: 1px solid rgba(255,107,107,0.2); border-radius: 2px;
+  padding: 0.7rem 0.9rem; display: none; line-height: 1.6;
+}
+
+#results-screen { display: none; flex-direction: column; min-height: 100vh; position: relative; z-index: 1; }
+
+.results-header {
+  padding: 1.2rem 2rem; border-bottom: 1px solid var(--border);
+  background: var(--surface); position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.results-logo { font-family: 'DM Serif Display', serif; font-size: 1.2rem; }
+.results-logo span { color: var(--green); font-style: italic; }
+.pill { font-size: 0.7rem; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); border-radius: 2px; padding: 0.3rem 0.65rem; }
+
+.results-body { padding: 2rem; max-width: 960px; margin: 0 auto; width: 100%; }
+
+#loading { display: none; flex-direction: column; align-items: center; justify-content: center; min-height: 55vh; gap: 1rem; }
+.spinner { width: 28px; height: 28px; border: 2px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin 0.75s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 0.78rem; color: var(--muted); text-align: center; max-width: 320px; line-height: 1.6; }
+.prog-wrap { width: 220px; height: 2px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.prog-fill { height: 100%; background: var(--green); width: 0%; transition: width 0.25s ease; }
+
+#album-results { display: none; }
+
+.controls { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1.4rem; flex-wrap: wrap; }
+.ctrl-label { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+.ctrl-btn {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--muted);
+  border-radius: 2px; font-family: 'DM Mono', monospace; font-size: 0.7rem;
+  padding: 0.3rem 0.65rem; cursor: pointer; transition: all 0.15s;
+}
+.ctrl-btn:hover, .ctrl-btn.active { border-color: var(--green); color: var(--green); background: rgba(29,185,84,0.08); }
+
+.section-label { font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 1rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border); }
+
+.album-list { display: flex; flex-direction: column; }
+
+.album-row {
+  display: grid;
+  grid-template-columns: 2.8rem 56px 1fr 110px 5rem;
+  align-items: center; gap: 1rem;
+  padding: 0.85rem 0.5rem; border-bottom: 1px solid var(--border);
+  animation: fadeUp 0.35s ease both; transition: background 0.15s; border-radius: 2px;
+}
+.album-row:hover { background: var(--surface2); }
+@keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+
+.rank { font-size: 0.76rem; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+.rank.gold { color: #f5c842; }
+.rank.silver { color: #b0b0b0; }
+.rank.bronze { color: #cd7f32; }
+
+.album-art { width: 56px; height: 56px; object-fit: cover; border-radius: 1px; display: block; }
+.album-art-ph { width: 56px; height: 56px; background: var(--surface2); border: 1px solid var(--border); border-radius: 1px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+
+.album-info { min-width: 0; overflow: hidden; }
+.album-name { font-family: 'DM Serif Display', serif; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.25; }
+.album-artist { font-size: 0.7rem; color: var(--muted); margin-top: 0.2rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.bar-wrap { height: 3px; background: var(--border); border-radius: 2px; margin-bottom: 0.35rem; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.5s ease; }
+.bar-pct { font-size: 0.68rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.liked-col { font-size: 0.7rem; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+
+<div id="setup-screen">
+  <div class="logo">album<span>rank</span></div>
+  <div class="tagline">Ranked by % of songs liked</div>
+
+  <div class="instructions">
+    <strong>One-time setup (2 min):</strong>
+    <ol>
+      <li>Go to <a href="https://developer.spotify.com/dashboard" target="_blank">developer.spotify.com/dashboard</a></li>
+      <li>Create an app (any name). Under "Which API/SDKs are you planning to use?" select <strong>Web API</strong>.</li>
+      <li>In app Settings → Redirect URIs, add exactly:<br>
+        <code>http://127.0.0.1:8888/album-rank.html</code></li>
+      <li>Copy your <strong>Client ID</strong> and paste below</li>
+      <li>Serve this file: open Terminal, <code>cd</code> to the folder with this file, run:<br>
+        <code>python3 -m http.server 8888 --bind 127.0.0.1</code>
+      </li>
+      <li>Open <code>http://127.0.0.1:8888/album-rank.html</code></li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div>
+      <label>Spotify Client ID</label>
+      <input type="text" id="client-id-input" placeholder="Paste your Client ID..." autocomplete="off" spellcheck="false">
+    </div>
+    <div class="err" id="err-msg"></div>
+    <button class="btn" onclick="startAuth()">Connect Spotify &rarr;</button>
+  </div>
+</div>
+
+<div id="results-screen">
+  <div class="results-header">
+    <div class="results-logo">album<span>rank</span></div>
+    <div class="pill" id="stats-pill"></div>
+  </div>
+  <div class="results-body">
+    <div id="loading">
+      <div class="spinner"></div>
+      <div class="loading-text" id="loading-text">Connecting...</div>
+      <div class="prog-wrap"><div class="prog-fill" id="prog-fill"></div></div>
+    </div>
+    <div id="album-results">
+      <div class="controls">
+        <span class="ctrl-label">Min tracks liked:</span>
+        <button class="ctrl-btn active" onclick="setFilter(1,this)">All</button>
+        <button class="ctrl-btn" onclick="setFilter(2,this)">2+</button>
+        <button class="ctrl-btn" onclick="setFilter(3,this)">3+</button>
+        <button class="ctrl-btn" onclick="setFilter(5,this)">5+</button>
+        <button class="ctrl-btn" onclick="setFilter(10,this)">10+</button>
+      </div>
+      <div class="section-label" id="section-label"></div>
+      <div class="album-list" id="album-list"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const REDIRECT_URI = 'http://127.0.0.1:8888/album-rank.html';
+  const SCOPES = 'user-library-read';
+  let allAlbums = [];
+  let minLiked = 1;
+
+  // PKCE helpers
+  function randomString(len) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+    const arr = new Uint8Array(len);
+    crypto.getRandomValues(arr);
+    return Array.from(arr, b => chars[b % chars.length]).join('');
+  }
+
+  async function sha256(plain) {
+    return crypto.subtle.digest('SHA-256', new TextEncoder().encode(plain));
+  }
+
+  function b64url(buf) {
+    return btoa(String.fromCharCode(...new Uint8Array(buf)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  async function startAuth() {
+    const clientId = document.getElementById('client-id-input').value.trim();
+    if (!clientId) { showErr('Please enter your Client ID.'); return; }
+
+    const verifier = randomString(64);
+    const challenge = b64url(await sha256(verifier));
+
+    // Pack clientId + verifier into state so they survive the redirect
+    // without relying on localStorage across origins
+    const state = btoa(JSON.stringify({ clientId, verifier }));
+
+    // Also store in sessionStorage as backup
+    sessionStorage.setItem('sp_state', state);
+
+    const url = new URL('https://accounts.spotify.com/authorize');
+    url.searchParams.set('client_id', clientId);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('redirect_uri', REDIRECT_URI);
+    url.searchParams.set('scope', SCOPES);
+    url.searchParams.set('code_challenge_method', 'S256');
+    url.searchParams.set('code_challenge', challenge);
+    url.searchParams.set('state', state);
+    window.location.href = url.toString();
+  }
+
+  async function exchangeCode(code, clientId, verifier) {
+    const res = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: REDIRECT_URI,
+        client_id: clientId,
+        code_verifier: verifier,
+      }).toString()
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(`${data.error}: ${data.error_description}`);
+    }
+
+    sessionStorage.setItem('sp_token', data.access_token);
+    sessionStorage.setItem('sp_token_exp', Date.now() + data.expires_in * 1000);
+    sessionStorage.setItem('sp_client_id', clientId);
+    return data.access_token;
+  }
+
+  function getCachedToken() {
+    const t = sessionStorage.getItem('sp_token');
+    const exp = parseInt(sessionStorage.getItem('sp_token_exp') || '0');
+    return (t && Date.now() < exp - 60000) ? t : null;
+  }
+
+  window.addEventListener('load', async () => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    const returnedState = params.get('state');
+    const error = params.get('error');
+
+    if (error) {
+      showErr('Spotify denied access: ' + error);
+      return;
+    }
+
+    if (code && returnedState) {
+      window.history.replaceState(null, '', window.location.pathname);
+
+      let clientId, verifier;
+      try {
+        const parsed = JSON.parse(atob(returnedState));
+        clientId = parsed.clientId;
+        verifier = parsed.verifier;
+      } catch(e) {
+        // Fallback to sessionStorage
+        const stored = sessionStorage.getItem('sp_state');
+        if (stored) {
+          try {
+            const parsed = JSON.parse(atob(stored));
+            clientId = parsed.clientId;
+            verifier = parsed.verifier;
+          } catch(e2) {
+            showErr('State decode failed. Please try again.');
+            return;
+          }
+        }
+      }
+
+      if (!clientId || !verifier) {
+        showErr('Missing auth data. Please paste your Client ID and try again.');
+        return;
+      }
+
+      showResultsScreen();
+      try {
+        const token = await exchangeCode(code, clientId, verifier);
+        await fetchLikedSongs(token);
+      } catch(e) {
+        setLoadingText('Error: ' + e.message);
+      }
+      return;
+    }
+
+    // Already have a valid cached token
+    const token = getCachedToken();
+    if (token) {
+      showResultsScreen();
+      await fetchLikedSongs(token);
+      return;
+    }
+
+    // Restore client ID if we have it
+    const savedId = sessionStorage.getItem('sp_client_id');
+    if (savedId) document.getElementById('client-id-input').value = savedId;
+  });
+
+  async function fetchLikedSongs(token) {
+    const tracks = [];
+    let url = 'https://api.spotify.com/v1/me/tracks?limit=50';
+    let total = null;
+
+    setLoadingText('Fetching your liked songs...');
+
+    while (url) {
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        setLoadingText('API error: ' + (e.error?.message || res.status));
+        return;
+      }
+      const data = await res.json();
+      if (total === null) total = data.total;
+
+      for (const item of data.items) {
+        if (item.track && item.track.album) {
+          tracks.push({ album: item.track.album, trackId: item.track.id });
+        }
+      }
+
+      const pct = total ? (tracks.length / total) * 100 : 0;
+      document.getElementById('prog-fill').style.width = pct + '%';
+      setLoadingText(`Fetching liked songs... ${tracks.length.toLocaleString()} / ${total.toLocaleString()}`);
+      url = data.next || null;
+    }
+
+    buildAlbums(tracks, total);
+  }
+
+  function buildAlbums(tracks, totalLiked) {
+    setLoadingText('Crunching numbers...');
+    const map = {};
+
+    for (const { album, trackId } of tracks) {
+      if (!map[album.id]) {
+        map[album.id] = {
+          name: album.name,
+          artist: album.artists.map(a => a.name).join(', '),
+          image: album.images?.[1]?.url || album.images?.[0]?.url || null,
+          total: album.total_tracks,
+          liked: new Set()
+        };
+      }
+      map[album.id].liked.add(trackId);
+    }
+
+    allAlbums = Object.values(map).map(a => ({
+      ...a,
+      likedCount: a.liked.size,
+      pct: a.total > 0 ? (a.liked.size / a.total) * 100 : 0
+    })).sort((a, b) => b.pct - a.pct || b.likedCount - a.likedCount);
+
+    document.getElementById('stats-pill').textContent =
+      `${totalLiked.toLocaleString()} liked songs · ${allAlbums.length} albums`;
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('album-results').style.display = 'block';
+    render();
+  }
+
+  function setFilter(n, btn) {
+    minLiked = n;
+    document.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  }
+
+  function render() {
+    const filtered = allAlbums.filter(a => a.likedCount >= minLiked);
+    document.getElementById('section-label').textContent =
+      `${filtered.length} album${filtered.length !== 1 ? 's' : ''} · sorted by % liked`;
+
+    const list = document.getElementById('album-list');
+    list.innerHTML = '';
+
+    filtered.forEach((a, i) => {
+      const row = document.createElement('div');
+      row.className = 'album-row';
+      row.style.animationDelay = `${Math.min(i * 20, 400)}ms`;
+
+      const rankClass = i === 0 ? 'rank gold' : i === 1 ? 'rank silver' : i === 2 ? 'rank bronze' : 'rank';
+      const img = a.image
+        ? `<img class="album-art" src="${esc(a.image)}" alt="" loading="lazy">`
+        : `<div class="album-art-ph">♪</div>`;
+
+      row.innerHTML = `
+        <div class="${rankClass}">#${i + 1}</div>
+        ${img}
+        <div class="album-info">
+          <div class="album-name">${esc(a.name)}</div>
+          <div class="album-artist">${esc(a.artist)}</div>
+        </div>
+        <div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:${a.pct.toFixed(1)}%"></div></div>
+          <div class="bar-pct">${a.pct.toFixed(0)}% liked</div>
+        </div>
+        <div class="liked-col">${a.likedCount} / ${a.total}</div>
+      `;
+      list.appendChild(row);
+    });
+  }
+
+  function showResultsScreen() {
+    document.getElementById('setup-screen').style.display = 'none';
+    document.getElementById('results-screen').style.display = 'flex';
+    document.getElementById('loading').style.display = 'flex';
+  }
+
+  function showErr(msg) {
+    const el = document.getElementById('err-msg');
+    el.textContent = msg;
+    el.style.display = 'block';
+  }
+
+  function setLoadingText(t) { document.getElementById('loading-text').textContent = t; }
+
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>
